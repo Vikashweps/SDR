@@ -1,0 +1,23 @@
+# Virtual environments
+audio_env/
+venv/
+env/
+
+# Build directories
+build/
+dist/
+
+# Large files
+*.so
+*.pcm
+*.dat
+*.bin
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# IDE
+.vscode/
+.idea/
