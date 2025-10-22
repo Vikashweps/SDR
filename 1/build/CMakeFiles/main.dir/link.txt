@@ -1,1 +1,0 @@
-/usr/bin/cc -g CMakeFiles/main.dir/main.c.o CMakeFiles/main.dir/SDR_init.c.o CMakeFiles/main.dir/SDR_signal.c.o -o main  -Wl,-rpath,/usr/local/lib /usr/local/lib/libSoapySDR.so.0.8.1 -pthread 
