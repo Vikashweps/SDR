@@ -13,7 +13,9 @@ find_package(SoapySDR REQUIRED)
 # Все исходные файлы проекта
 set(MAIN_SOURCE_FILES
     main.c
-
+    SDR_init.c  
+    SDR_include.h
+    
 )
 
 # Создаем исполняемый файл

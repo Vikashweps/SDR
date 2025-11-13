@@ -51,8 +51,8 @@ int sdr_configure(sdr_device_t *sdr) {
     size_t channels[] = {0};
     
     // Настройки усилителей на RX\\\\TX
-    SoapySDRDevice_setGain(sdr->device, SOAPY_SDR_RX, 0, 40.0);
-    SoapySDRDevice_setGain(sdr->device, SOAPY_SDR_TX, 0, -10.0);
+    SoapySDRDevice_setGain(sdr->device, SOAPY_SDR_RX, 0, 10.0);
+    SoapySDRDevice_setGain(sdr->device, SOAPY_SDR_TX, 0, -90.0);
     
     // Создание потоков
     size_t channel_count = sizeof(channels) / sizeof(channels[0]);
@@ -71,6 +71,27 @@ int sdr_configure(sdr_device_t *sdr) {
     return 0;
 }
 
+// Чтение samples из приемника
+int sdr_read_samples(sdr_device_t *sdr, int16_t *rx_buffer, long long *timeNs) {
+    void *rx_buffs[] = {rx_buffer};
+    int flags;
+    const long timeoutUs = 400000;
+    
+    int sr = SoapySDRDevice_readStream(sdr->device, sdr->rxStream, rx_buffs, sdr->rx_mtu, &flags, timeNs, timeoutUs);
+    
+    return sr;
+}
+
+// Запись samples в передатчик
+int sdr_write_samples(sdr_device_t *sdr, int16_t *tx_buff, long long tx_time) {
+    void *tx_buffs[] = {tx_buff};
+    int tx_flags = SOAPY_SDR_HAS_TIME;
+    const long timeoutUs = 400000;
+    
+    int st = SoapySDRDevice_writeStream(sdr->device, sdr->txStream, (const void * const*)tx_buffs, sdr->tx_mtu, &tx_flags, tx_time, timeoutUs);
+    return st;
+}
+
 // Освобождение ресурсов
 void sdr_cleanup(sdr_device_t *sdr) {
     SoapySDRDevice_deactivateStream(sdr->device, sdr->rxStream, 0, 0);
@@ -81,4 +102,15 @@ void sdr_cleanup(sdr_device_t *sdr) {
 
     SoapySDRDevice_unmake(sdr->device);
     free(sdr);
+}
+
+// Сохранение samples в файл
+void save_to_file(const char *filename, const int16_t *samples, size_t num_samples) {
+    FILE *file = fopen(filename, "wb");
+    if (file == NULL) {
+        printf("Error opening file %s\n", filename);
+        return;
+    }
+    fwrite(samples, sizeof(int16_t), num_samples, file);
+    fclose(file);
 }

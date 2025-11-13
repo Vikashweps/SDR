@@ -9,6 +9,11 @@
 #include <complex.h>
 #include <math.h>
 
+// Структура для IQ samples 
+typedef struct {
+    float i;
+    float q;
+} iq_sample_t;
 
 // Структура устройства
 typedef struct {
@@ -27,5 +32,5 @@ int sdr_configure(sdr_device_t *sdr);
 int sdr_read_samples(sdr_device_t *sdr, int16_t *rx_buffer, long long *timeNs);
 int sdr_write_samples(sdr_device_t *sdr, int16_t *tx_buff, long long tx_time);
 void sdr_cleanup(sdr_device_t *sdr);
-
+void save_to_file(const char *filename, const int16_t *samples, size_t num_samples);
 #endif
