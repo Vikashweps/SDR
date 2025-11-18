@@ -32,5 +32,6 @@
 ## Используемые технологии
 
 - C/C++
+- Python
 - SoapySDR
 - PCM audio format
