@@ -89,7 +89,6 @@ void convert_iq_to_sdr(const iq_sample_t* iq_samples, int16_t* sdr_buffer, int n
     }
 }
 
-// ✅ ДОБАВЬТЕ ЭТУ ФУНКЦИЮ - она отсутствовала!
 void convert_sdr_to_iq(const int16_t* sdr_buffer, iq_sample_t* iq_samples, int num_samples) {
     for (int i = 0; i < num_samples; i++) {
         iq_samples[i].i = (float)sdr_buffer[2*i] / 32767.0f;
@@ -203,9 +202,6 @@ int main() {
     fclose(rx_file);
     fclose(tx_file);
 
-    // ✅✅✅ СОГЛАСОВАННЫЙ ФИЛЬТР ✅✅✅
-    printf("\n=== APPLYING MATCHED FILTER TO RECEIVED SIGNAL ===\n");
-
     FILE *rx_input = fopen("rx_samples.pcm", "rb");
     fseek(rx_input, 0, SEEK_END);
     long file_size = ftell(rx_input);
@@ -222,7 +218,7 @@ int main() {
     iq_sample_t *rx_iq = (iq_sample_t*)malloc(num_rx_samples * sizeof(iq_sample_t));
     convert_sdr_to_iq(original_rx_data, rx_iq, num_rx_samples);
 
-    // ДИАГНОСТИКА: что мы приняли?
+  
     printf("First 20 received samples (before filtering):\n");
     for(int i = 0; i < 20 && i < num_rx_samples; i++) {
         printf("[%3d]: I=%10.6f, Q=%10.6f\n", i, rx_iq[i].i, rx_iq[i].q);
