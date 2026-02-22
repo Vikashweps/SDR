@@ -1,7 +1,7 @@
 #include "SDR_include.h"
 
 // Инициализация SDR устройства (USB или IP)
-sdr_device_t* sdr_init(int use_usb) {
+    sdr_device_t* sdr_init(int use_usb) {
     SoapySDRKwargs args = {};
     // Настройка параметров устройства PlutoSDR
     SoapySDRKwargs_set(&args, "driver", "plutosdr");  // Используем драйвер для PlutoSDR
@@ -51,14 +51,17 @@ int sdr_configure(sdr_device_t *sdr) {
     size_t channels[] = {0};
     
     // Настройки усилителей на RX\\\\TX
-    SoapySDRDevice_setGain(sdr->device, SOAPY_SDR_RX, 0, 10.0);
-    SoapySDRDevice_setGain(sdr->device, SOAPY_SDR_TX, 0, -90.0);
+    SoapySDRDevice_setGain(sdr->device, SOAPY_SDR_RX, 0, 70.0);
+    SoapySDRDevice_setGain(sdr->device, SOAPY_SDR_TX, 0, 0.0);
     
     // Создание потоков
     size_t channel_count = sizeof(channels) / sizeof(channels[0]);
     // Формирование потоков для передачи и приема сэмплов
     sdr->rxStream = SoapySDRDevice_setupStream(sdr->device, SOAPY_SDR_RX, SOAPY_SDR_CS16, channels, channel_count, NULL);
     sdr->txStream = SoapySDRDevice_setupStream(sdr->device, SOAPY_SDR_TX, SOAPY_SDR_CS16, channels, channel_count, NULL);
+
+    SoapySDRDevice_writeSetting(sdr->device, "RX1_GAIN", "70");
+    SoapySDRDevice_writeSetting(sdr->device, "TX1_ATTENUATION", "0");
 
     // Запуск потоков
     SoapySDRDevice_activateStream(sdr->device, sdr->rxStream, 0, 0, 0);

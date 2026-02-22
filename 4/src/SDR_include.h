@@ -8,6 +8,9 @@
 #include <stdint.h>
 #include <complex.h>
 #include <math.h>
+#include <vector>
+#include <time.h>
+#include <cstring>
 
 // Структура для IQ samples 
 typedef struct {
