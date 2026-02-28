@@ -1,13 +1,50 @@
 #include "SDR_include.h"
-#include "third_party/implot/implot.h"
-#include "third_party/imgui/backends/imgui_impl_sdl2.h"
-#include "third_party/imgui/backends/imgui_impl_opengl3.h"
-#include "third_party/imgui/imgui.h"
 using namespace std;
+
+// Генерация тестового сигнала для передачи
+void generate_tx_signal(int16_t *tx_buff, size_t tx_mtu, long long tx_time) {
+    // Синхропоследовательности
+    for(size_t i = 0; i < 2; i++) {
+        tx_buff[0 + i] = 0xffff;
+        tx_buff[10 + i] = 0xffff;
+    }
+ //заполнение tx_buff значениями сэмплов первые 16 бит - I, вторые 16 бит - Q.
+    for (size_t i = 2; i < 2 * tx_mtu; i += 2) {
+        // ЗДЕСЬ БУДУТ ВАШИ СЭМПЛЫ
+        tx_buff[i] = 1500 << 4;   // I
+        tx_buff[i+1] = 1500 << 4; // Q
+    }
+    // Генерация I/Q samples
+    /*float x = -96;
+    for (size_t i = 2; i < 2 * tx_mtu; i += 2) {
+        tx_buff[i] = (x*x);   // I компонента
+        tx_buff[i+1] = (x*x); // Q компонента
+        x += 0.1;
+    }*/
+
+   
+
+    // Встраивание временной метки
+    for(size_t i = 0; i < 8; i++) {
+        uint8_t tx_time_byte = (tx_time >> (i * 8)) & 0xff;
+        tx_buff[2 + i] = tx_time_byte << 4;
+    }
+}
+
+// Сохранение samples в файл
+void save_to_file(const char *filename, const int16_t *samples, size_t num_samples) {
+    FILE *file = fopen(filename, "wb");
+    if (file != NULL) {
+        fwrite(samples, sizeof(int16_t), num_samples, file);
+        fclose(file);
+        printf("Saved %zu samples to %s\n", num_samples / 2, filename);
+    }
+}
+
 
 vector<complex<float>> bpsk_mapper(const vector<int>& array){
     vector <complex <float>> samples;
-    for (size_t i = 0; i < array.size(); i++) {
+    for (int i = 0; i < array.size(); i++) {
         complex <float> val;
         if (array[i] == 1) {
             val = 1.0 + 0.0f;
@@ -19,11 +56,11 @@ vector<complex<float>> bpsk_mapper(const vector<int>& array){
     return samples;
 }
 
-vector <complex <float>> upsampling(vector<complex <float>> & samples, int samples_per_symbol) {
+vector<complex<float>> upsampling(vector<complex<float>>& samples, int samples_per_symbol) {
     vector<complex<float>> upsampled;
     upsampled.resize(samples.size() * samples_per_symbol);
     int j = 0;
-    for (size_t i = 0; i < upsampled.size(); i += samples_per_symbol) 
+    for (int i = 0; i < upsampled.size(); i += samples_per_symbol) 
     {
         upsampled[i] = samples[j];
         j++;
@@ -32,16 +69,16 @@ vector <complex <float>> upsampling(vector<complex <float>> & samples, int sampl
     return upsampled;
 }
 
-vector <complex <float>> convolve(vector<complex <float>> upsampled, int samples_per_symbol) {
+vector<complex<float>> convolve(vector<complex<float>> upsampled, int samples_per_symbol) {
     vector <complex<float>> convolved;
     vector <float> b(samples_per_symbol, 1.0f);
-    for (size_t n = 0; n < upsampled.size(); ++n) 
+    for (int n = 0; n < upsampled.size(); ++n) 
         {
             complex<float> sum(0.0f, 0.0f);
-            for (size_t k = 0; k < b.size(); ++k) 
+            for (int k = 0; k < b.size(); ++k) 
             {
-                size_t idx = n - k;
-                if (idx < upsampled.size()) { 
+                int idx = n - k;
+                if (idx >= 0 && idx < upsampled.size()) { 
                 sum += upsampled[idx] * b[k];
             }
         }
@@ -50,7 +87,7 @@ vector <complex <float>> convolve(vector<complex <float>> upsampled, int samples
     return convolved;
 }
 
-vector<float> offset(vector<complex <float>> matched, int samples_per_symbol)
+vector<float> offset(vector<complex<float>> matched, int samples_per_symbol) 
 {
     int K1, K2, p1, p2 = 0;
     float BnTs = 0.0001;
@@ -64,7 +101,7 @@ vector<float> offset(vector<complex <float>> matched, int samples_per_symbol)
     vector<float> errof;
 
 
-    for (size_t i = 0; i < matched.size(); i += samples_per_symbol)
+    for (int i = 0; i < matched.size(); i += samples_per_symbol)
     {
         err = (matched[i + samples_per_symbol + tau].real() - matched[i + tau]).real() * matched[i + (samples_per_symbol / 2) + tau].real() + (matched[i + samples_per_symbol + tau].imag() - matched[i + tau]).imag() * matched[i + (samples_per_symbol / 2) + tau].imag(); 
         p1 = err * K1;
@@ -87,7 +124,7 @@ vector<float> offset(vector<complex <float>> matched, int samples_per_symbol)
 
 
 
-    void run_gui(const vector<complex<float>>& sample, const vector<complex<float>>& upsample, const vector<complex<float>>& convolved, const vector<complex<float>>& matched, const vector<float>& errof, int samples_per_symbol,const vector<complex<float>> dounsample)
+    void run_gui(const vector<complex<float>>& sample, const vector<complex<float>>& upsample, const vector<complex<float>>& convolved, const vector<complex<float>>& matched, const vector<float>& errof, int samples_per_symbol, const vector<complex<float>> dounsample)
     {
         
     SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER);
@@ -250,8 +287,8 @@ vector<complex<float>> dounsampling(const vector<complex<float>>& matched, const
     dounsampled.reserve(errof.size());  
     
     for (size_t i = 0; i < errof.size(); ++i) {  
-        size_t idx = (errof[i]);    
-        if (idx <(matched.size())) {
+        int idx = (errof[i]);    
+        if (idx >= 0 && idx <(matched.size())) {
             dounsampled.push_back(matched[idx]);  
         }
     }
@@ -259,62 +296,21 @@ vector<complex<float>> dounsampling(const vector<complex<float>>& matched, const
     return dounsampled;
 }
 
-
-
-
-int main(){
-    
-    int size = 10;
-    vector<int>array  = {1, 0, 1, 0, 1, 0, 1, 0, 1, 0};
-    
-    vector<complex<float>> sample = bpsk_mapper(array);
-    cout << "samples" << endl;
-    for(size_t i = 0; i < sample.size(); i++) 
-    {
-        cout << sample[i] << " " ;
+void sdr_to_complex(const int16_t* sdr_buf, vector<complex<float>>& out, size_t num_samples) {
+    out.resize(num_samples);
+    for (size_t i = 0; i < num_samples; ++i) {
+        out[i] = {
+            (float)sdr_buf[2*i] / 32768.0f,
+            (float)sdr_buf[2*i + 1] / 32768.0f
+        };
     }
-    cout << endl;
-
-    cout << "upsampling" << endl;
-    vector<complex<float>> upsample = upsampling(sample, size);
-     for(size_t i = 0; i < upsample.size(); i++) 
-    {
-        cout << upsample[i] << " "  ;
-    }
-    cout << endl;
-
-    cout << "convolve" << endl;
-    vector<complex<float>> convolved = convolve(upsample, size);
-     for(size_t i = 0; i < convolved.size(); i++) 
-    {
-        cout << convolved[i] << " "  ;
-    }
-    cout << endl;
-    
-    cout << "matched filter" << endl;
-    vector<complex<float>> matched = convolve(convolved, size);
-     for(size_t i = 0; i < matched.size(); i++) 
-    {
-        cout << matched[i] << " "  ;
-    }
-    cout << endl;
-
-    cout << "errof" << endl;
-    vector<float> errof = offset(matched, size);
-     for(int i = 0; i < size; i++) 
-    {
-        cout << errof[i] << " "  ;
-    }
-    cout << endl;
-
-    cout << "dounsampling" << endl;
-    vector<complex<float>> dounsample = dounsampling(matched, errof );
-     for(size_t i = 0; i < dounsample.size(); i++) 
-    {
-        cout << dounsample[i] << " "  ;
-    }
-    cout << endl;
-
-    run_gui(sample, upsample, convolved, matched, errof, size, dounsample);
-    return 0;
 }
+
+// Передача: complex<float> от DSP -> SDR буфер (int16_t I/Q interleaved)
+void complex_to_sdr(const vector<complex<float>>& in, int16_t* sdr_buf, size_t num_samples) {
+    for (size_t i = 0; i < num_samples; ++i) {
+        sdr_buf[2*i]     = (int16_t)(in[i].real() * 32767.0f);
+        sdr_buf[2*i + 1] = (int16_t)(in[i].imag() * 32767.0f);
+    }
+}
+

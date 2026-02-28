@@ -50,6 +50,7 @@ target_compile_options(implot PRIVATE -fPIC)
 set(MAIN_SOURCE_FILES
     ${SRC_DIR}/main.cpp
     ${SRC_DIR}/SDR_init.cpp 
+    ${SRC_DIR}/function.cpp 
 )
 
 add_executable(main ${MAIN_SOURCE_FILES})
@@ -86,10 +87,19 @@ target_include_directories(test PRIVATE
     ${SoapySDR_INCLUDE_DIRS}
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${SRC_DIR}
+    ${THIRD_PARTY_DIR}/imgui             
+    ${THIRD_PARTY_DIR}/imgui/backends    
+    ${THIRD_PARTY_DIR}/implot             
+    ${SDL2_INCLUDE_DIRS}                 
 )
 
 target_link_libraries(test PRIVATE 
     ${SoapySDR_LIBRARIES} 
+    imgui          
+    implot         
+    ${SDL2_LIBRARIES} 
+    ${OPENGL_LIBRARIES} 
+    ${GLEW_LIBRARIES}
     m
 )
 

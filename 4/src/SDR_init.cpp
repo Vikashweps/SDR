@@ -51,8 +51,8 @@ int sdr_configure(sdr_device_t *sdr) {
     size_t channels[] = {0};
     
     // Настройки усилителей на RX\\\\TX
-    SoapySDRDevice_setGain(sdr->device, SOAPY_SDR_RX, 0, 70.0);
-    SoapySDRDevice_setGain(sdr->device, SOAPY_SDR_TX, 0, 0.0);
+    SoapySDRDevice_setGain(sdr->device, SOAPY_SDR_RX, 0, 10.0);
+    SoapySDRDevice_setGain(sdr->device, SOAPY_SDR_TX, 0, -90.0);
     
     // Создание потоков
     size_t channel_count = sizeof(channels) / sizeof(channels[0]);
@@ -105,15 +105,4 @@ void sdr_cleanup(sdr_device_t *sdr) {
 
     SoapySDRDevice_unmake(sdr->device);
     free(sdr);
-}
-
-// Сохранение samples в файл
-void save_to_file(const char *filename, const int16_t *samples, size_t num_samples) {
-    FILE *file = fopen(filename, "wb");
-    if (file == NULL) {
-        printf("Error opening file %s\n", filename);
-        return;
-    }
-    fwrite(samples, sizeof(int16_t), num_samples, file);
-    fclose(file);
 }
