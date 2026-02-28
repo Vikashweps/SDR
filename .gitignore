@@ -3,13 +3,15 @@ audio_env/
 venv/
 env/
 
-# Build directories
+
 build/
 dist/
+matplotlib-cpp/
 
 # Large files
 *.so
 *.pcm
+*.mp3
 *.dat
 *.bin
 
