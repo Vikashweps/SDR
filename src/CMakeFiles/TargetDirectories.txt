@@ -1,7 +1,0 @@
-/home/vika/Desktop/SDR/src/CMakeFiles/imgui.dir
-/home/vika/Desktop/SDR/src/CMakeFiles/implot.dir
-/home/vika/Desktop/SDR/src/CMakeFiles/main.dir
-/home/vika/Desktop/SDR/src/CMakeFiles/test.dir
-/home/vika/Desktop/SDR/src/CMakeFiles/distclean.dir
-/home/vika/Desktop/SDR/src/CMakeFiles/edit_cache.dir
-/home/vika/Desktop/SDR/src/CMakeFiles/rebuild_cache.dir
