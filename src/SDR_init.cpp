@@ -51,8 +51,8 @@ int sdr_configure(sdr_device_t *sdr) {
     size_t channels[] = {0};
     
     // Настройки усилителей на RX\\\\TX
-    SoapySDRDevice_setGain(sdr->device, SOAPY_SDR_RX, 0, 10.0);
-    SoapySDRDevice_setGain(sdr->device, SOAPY_SDR_TX, 0, -90.0);
+    SoapySDRDevice_setGain(sdr->device, SOAPY_SDR_RX, 0, 40.0);
+    SoapySDRDevice_setGain(sdr->device, SOAPY_SDR_TX, 0, 40.0);
     
     // Создание потоков
     size_t channel_count = sizeof(channels) / sizeof(channels[0]);

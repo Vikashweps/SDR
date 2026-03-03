@@ -53,6 +53,7 @@ void genersdr_bufate_tx_signal(int16_t *tx_buff, size_t tx_mtu, long long tx_tim
 void save_to_file(const char *filename, const int16_t *samples, size_t num_samples);
 
 vector<complex<float>> bpsk_mapper(const vector<int>& array);
+vector<int> bpsk_demapper(const vector<complex<float>>& symbols);
 vector<complex<float>> upsampling(vector<complex<float>>& samples, int samples_per_symbol);
 vector<complex<float>> convolve(vector<complex<float>> upsampled, int samples_per_symbol);
 vector<float> offset(vector<complex<float>> matched, int samples_per_symbol);
