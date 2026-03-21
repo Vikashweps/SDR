@@ -66,6 +66,7 @@ vector<float> offset(vector<complex <float>> matched, int samples_per_symbol)
 
     for (size_t i = 0; i < matched.size(); i += samples_per_symbol)
     {
+        if (i + samples_per_symbol + tau >= matched.size()) break;
         err = (matched[i + samples_per_symbol + tau].real() - matched[i + tau]).real() * matched[i + (samples_per_symbol / 2) + tau].real() + (matched[i + samples_per_symbol + tau].imag() - matched[i + tau]).imag() * matched[i + (samples_per_symbol / 2) + tau].imag(); 
         p1 = err * K1;
         p2 =  p2 + p1 + err * K2;

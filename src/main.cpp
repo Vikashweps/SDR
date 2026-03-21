@@ -1,188 +1,137 @@
+#include "test_rx_samples_bpsk_barker13.h"
 #include "SDR_include.h"
 using namespace std;
 
 int main() {
-    printf("Запуск SDR\n");
-    srand((unsigned int)time(NULL));
 
-    // Инициализация SDR 
-    sdr_device_t *sdr = sdr_init(1);
-    if (sdr == NULL) {
-        printf("ОШИБКА: Не удалось создать SDR устройство!\n");
+    // Параметры приема
+    const int sample_rate = 4000000;
+    const int samples_per_symbol = 16;
+    int syms = 5;
+    const float beta = 0.75f;
+    const float barker_threshold = 8.0f;
+
+    // Формируем Баркера
+    vector<int> barker_real = {1, 1, 1, 1, 1, -1, -1, 1, 1, -1, 1, -1, 1};
+    vector<int> barker_imag = {1, 1, 1, 1, 1, -1, -1, 1, 1, -1, 1, -1, 1};
+    vector<complex<float>> barker_complex;
+    for(int i = 0; i < (int)barker_real.size(); i++){
+        barker_complex.push_back(complex(barker_real[i] * 1.1f, barker_imag[i] * 1.1f));
+    }
+
+    // Исходная последовательность  0X00Hello from user10X0 - декодировано 0X00Hello from user1 
+    vector<int> hello_sibguti = {0, 0, 1, 1, 0, 0, 0, 0, 0, 1, 0, 1, 1, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 1, 
+        1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 1, 1, 0, 0, 1, 0, 1, 0, 1, 1, 0, 1, 1, 0, 0, 0, 1, 1, 0, 1, 1, 0, 0, 
+        0, 1, 1, 0, 1, 1, 1, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 0, 0, 1, 1, 0, 1, 
+        1, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 1, 0, 1, 0, 1, 1, 1, 0, 0, 1, 1, 0, 1, 
+        1, 0, 0, 1, 0, 1, 0, 1, 1, 1, 0, 0, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 1, 0, 1, 1, 0, 0, 
+        0, 0, 0, 1, 1, 0, 0, 0, 0};
+
+    
+    const size_t start_idx = 8210;
+    const size_t end_idx = min(start_idx + 3000, test_rx_sampless_bpsk_barker13.size()); 
+    vector<complex<float>> rx_segment;
+    rx_segment.reserve(end_idx - start_idx);
+    for (size_t i = start_idx; i < end_idx; ++i) {
+        rx_segment.push_back(test_rx_sampless_bpsk_barker13[i] / 2048.0f);
+    }
+    vector<complex<float>> matched = matched_filter(rx_segment, samples_per_symbol, beta);
+    vector<complex<float>> downsampled = clock_recovery_mueller_muller(matched, samples_per_symbol);
+    vector<complex<float>> costas_out = costas_loop_bpsk(downsampled);
+    
+    // Нормализация к единице
+    float max = 0.0f;
+    vector<complex<float>> costas_norm;
+    costas_norm.resize(costas_out.size());
+    
+    for (int i = 0; i < costas_out.size(); i++) {
+        if(costas_out[i].real() > max){
+            max = costas_out[i].real();
+        }
+    }
+    if (max > 1e-6f) {  // защита от деления на ноль
+        for (size_t i = 0; i < costas_out.size(); i++) {
+            costas_norm[i] = costas_out[i] / max;
+        }
+    }
+
+
+    // КОРРЕЛЯЦИЯ ДЛЯ ПОИСКА БАРКЕРА
+    vector<complex<float>> corr = correlate_barker(costas_norm, barker_complex);
+    // Поиск пика
+    float max_val = -1e9f;
+    int max_idx = -1;
+    for (size_t i = 0; i < corr.size(); ++i) {
+        if (corr[i].real() > max_val) {
+            max_val = corr[i].real();
+            max_idx = static_cast<int>(i);
+        }
+    }
+
+    if (max_idx == -1 ) {
+        printf("ERROR: Barker not found!\n");
         return 1;
     }
-    if (sdr_configure(sdr) != 0) { 
-        sdr_cleanup(sdr); 
-        return 1; 
-    }
+    printf("Barker found at symbol index: %d, peak: %.4f\n", max_idx, max_val);
 
-    printf("Устройство успешно инициализировано\n");
-    printf("TX MTU: %zu сэмплов\n", sdr->tx_mtu);
-
-    // Параметры сигнала
-    vector<int> Barker = {1, 1, 1, 1, 1, 0, 0, 1, 1, 0, 1, 0, 1};
-    const int samples_per_symbol = 10;  
-    const int num_bits = sdr->tx_mtu / samples_per_symbol - Barker.size();  
+    //  ОБРЕЗКА СИГНАЛА 
+    const int BARKER_LEN = 13;
+    int data_start_idx = max_idx + BARKER_LEN; 
     
-    // 1. Генерация данных (биты) 
-    vector<int> bits(num_bits);
-    for (size_t i = 0; i < bits.size(); i++) {
-        bits[i] = rand() % 2;  
+     // Извлекаем символы данных из нормированного сигнала
+    vector<complex<float>> data_only(costas_norm.begin() + data_start_idx, costas_norm.end());
+
+    // Демодуляция
+    vector<int> decoded;
+    for (const auto& sym : data_only) {
+        decoded.push_back(sym.real() > 0.0f ? 1 : 0);
     }
-    printf("Сгенерировано %zu бит\n", bits.size());
-    printf("Первые 30 бит: ");
-    for (size_t i = 0; i < 30 && i < bits.size(); i++) {
-        printf("%d", bits[i]);
+
+    printf("Декодировано бит: %zu\n", decoded.size());
+    printf("Принятые биты: ");
+    for (size_t i = 0; i < decoded.size(); i++) {
+        if (i % 8 == 0) printf(" ");
+        printf("%d", decoded[i]);
     }
     printf("\n");
+
+    // 8. Побитовое сравнение с эталонной последовательностью
+    int success_counter = 0;
+    int error_counter = 0;
+    size_t compare_len = min(hello_sibguti.size(), decoded.size());
     
-    //  2. BPSK маппер (биты → символы) 
-    vector<complex<float>> data_symbols = bpsk_mapper(bits);
-    vector<complex<float>> Barker_symbols = bpsk_mapper(Barker);
-
-    // 3. Объединяем: Баркер + Данные 
-    vector<complex<float>> sample = Barker_symbols;
-    sample.insert(sample.end(), data_symbols.begin(), data_symbols.end());
+    printf("\n Побитовое сравнение \n");
+    printf("Ожидаемо бит: %zu\n", hello_sibguti.size());
+    printf("Принято бит:   %zu\n", decoded.size());
+    printf("Сравниваем первых %zu бит:\n", compare_len);
     
-    printf("Всего символов: %zu (Баркер: %zu + Данные: %zu)\n", 
-           sample.size(), Barker.size(), data_symbols.size());
-
-    vector<complex<float>> upsample = upsampling(sample, samples_per_symbol);
-    vector<complex<float>> convolved = convolve(upsample, samples_per_symbol);
-    
-    int16_t *tx_buff = (int16_t*)malloc(2 * sdr->tx_mtu * sizeof(int16_t));
-
-    complex_to_sdr(convolved, tx_buff, convolved.size());
-
-    // for (size_t i = 0; i < sdr->tx_mtu; i++) {
-    //     tx_buff[2*i] = 2000<<4;
-    //     tx_buff[2*i + 1] = 2000<<4;
-    // }
-
-    for (size_t i = 0; i < 2; i++)
-    {
-        tx_buff[0 + i] = 0xffff;
-        // 8 x timestamp words
-        tx_buff[10 + i] = 0xffff;
-    }
-    printf("\nБуфер передачи готов: %zu сэмплов\n", convolved.size());
-
-    // Буферы и НАКОПИТЕЛЬ RX данных
-    int16_t *rx_buffer = (int16_t*)malloc(2 * sdr->rx_mtu * sizeof(int16_t));
-    long long timeNs = 0;
-    const long timeoutUs = 400000;
-    
-    vector<complex<float>> rx_signal;
-    
-    // Файлы
-    FILE *rx_file = fopen("rx_samples.pcm", "wb");
-    FILE *tx_file = fopen("tx_samples.pcm", "wb");
-
-    vector<complex<float>> rx_complex(1920);
-    vector<complex<float>> rx_complex_full;
-
-    if (rx_file == NULL) printf("Предупреждение: не удалось создать rx_samples.pcm\n");
-    if (tx_file == NULL) printf("Предупреждение: не удалось создать tx_samples.pcm\n");
-    
-    printf("Буферы и файлы готовы\n");
-
-    //Основной цикл RX/TX 
-    size_t iteration_count = 100;
-
-    for (size_t i = 0; i < iteration_count; i++)  {
-         
-        // ПРИЁМ
-        void *rx_buffs[] = {rx_buffer};
-        int flags;
-        int sr = SoapySDRDevice_readStream(sdr->device, sdr->rxStream, rx_buffs, sdr->rx_mtu, &flags, &timeNs, timeoutUs);
-        
-        if (sr > 0) {
-            printf("Приём %zu: %d сэмплов\n", i, sr);
-            
-            if (rx_file != NULL) {
-                fwrite(rx_buffer, sizeof(int16_t), 2 * sr, rx_file);
-            }
-             for (int i = 0; i < 1920; i++){
-                rx_complex[i] = complex<float>(rx_buffer[i*2], rx_buffer[i*2 + 1]);
-             }
-             rx_complex_full.insert(rx_complex_full.end(), rx_complex.begin(), rx_complex.end());
-    
-
-             
-                // // Конвертация и НАКОПЛЕНИЕ
-                // vector<complex<float>> rx_complex;
-                // sdr_to_complex(rx_buffer, rx_complex, sr);
-                // rx_signal.insert(rx_signal.end(), rx_complex.begin(), rx_complex.end());
-                
-        } 
-
-    // ПЕРЕДАЧА (на 3-й итерации)
-        if (i > 2) {
-            
-            // if (tx_file != NULL) {
-            //     fwrite(tx_buff, sizeof(int16_t), 2 * sdr->tx_mtu, tx_file);
-            // }
-            
-            long long tx_time = timeNs + (4 * 1000 * 1000);
-            for(size_t j = 0; j < 8; j++) {
-                uint8_t tx_time_byte = (tx_time >> (j * 8)) & 0xff;
-                tx_buff[2 + j] = tx_time_byte << 4;
-            }
-            
-            void *tx_buffs[] = {tx_buff};
-            int tx_flags = SOAPY_SDR_HAS_TIME;
-            int st = SoapySDRDevice_writeStream(sdr->device, sdr->txStream, (const void * const*)tx_buffs, sdr->tx_mtu, &tx_flags, tx_time, timeoutUs);
-            
-            if (st != (int)sdr->tx_mtu) {
-                printf("    ОШИБКА передачи: %d\n", st);
-            } else {
-                printf(" Успешно отправлено в эфир!\n");
-            }
+    for (size_t i = 0; i < compare_len; i++) {
+        if (hello_sibguti[i] == decoded[i]) {
+            success_counter++;
+        } else {
+            error_counter++;
         }
-    
-    
     }
-    // Закрытие файлов
-    if (rx_file != NULL) fclose(rx_file);
-    if (tx_file != NULL) fclose(tx_file);
-    printf("\nФайлы сохранены: rx_samples.pcm, tx_samples.pcm\n");
-
-    //  ОБРАБОТКА ВСЕХ НАКОПЛЕННЫХ ДАННЫХ
-    if (rx_complex_full.size() > 0) {
-        printf("\nОбработка принятых данных n");
-        printf("Всего получено сэмплов: %zu\n", rx_complex_full.size());
-        
-        vector<complex<float>> matched = convolve(rx_complex_full, samples_per_symbol);
-
-        printf("Запуск синхронизации символов...\n");
-        vector<float> errof = offset(matched, samples_per_symbol);
-        
-        printf("Даунсемплинг...\n");
-        vector<complex<float>> dounsample = dounsampling(matched, errof);
-        printf("Восстановлено символов: %zu\n", dounsample.size());
-        
-        // Демодуляция: символы → биты
-        vector<int> decoded_bits = bpsk_demapper(dounsample);
-        printf("Декодировано бит: %zu\n", decoded_bits.size());
-        
-        printf("Первые 30 декодированных бит: ");
-        for (size_t i = 0; i < 30 && i < decoded_bits.size(); i++) {
-            printf("%d", decoded_bits[i]);
-        }
-
-
-        printf("\nОткрытие GUI\n");
-        run_gui(sample, upsample, convolved, matched, errof, samples_per_symbol, dounsample);
-        printf("Окно закрыто\n");
-        
-    }
-
-    // Очистка 
-    free(tx_buff);
-    free(rx_buffer);
-    sdr_cleanup(sdr);
-    printf("Ресурсы освобождены\n");
     
-    printf("\nРабота SDR завершена\n");
-    return 0;
+    // Расчёт статистики
+    float success_rate = (compare_len > 0) ? 
+        (100.0f * success_counter / static_cast<float>(compare_len)) : 0.0f;
+
+    printf("Совпадений:  %d / %zu\n", success_counter, compare_len);
+    printf("Ошибок:      %d / %zu\n", error_counter, compare_len);
+    printf("Успешность:  %.2f%%\n", success_rate);
+    
+ 
+
+    
+    run_gui(
+        rx_segment,        
+        matched,            
+        downsampled,        
+        corr,              
+        data_only,         
+        costas_out                
+);
+
+     return 0;
 }

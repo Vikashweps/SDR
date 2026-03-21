@@ -70,6 +70,7 @@ target_link_libraries(main PRIVATE
     ${OPENGL_LIBRARIES} 
     ${GLEW_LIBRARIES}
     m
+    fftw3f 
 )
 
 set_target_properties(main PROPERTIES
