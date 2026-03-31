@@ -1,71 +1,38 @@
 #include "SDR_include.h"
 using namespace std;
 
-// // Генерация сигнала для передачи
-// void generate_tx_signal(int16_t *tx_buff, size_t tx_mtu, long long tx_time) {
-//     // Синхропоследовательности
-//     for(size_t i = 0; i < 2; i++) {
-//         tx_buff[0 + i] = 0xffff;
-//         tx_buff[10 + i] = 0xffff;
-//     }
-//  //заполнение tx_buff значениями сэмплов первые 16 бит - I, вторые 16 бит - Q.
-//     for (size_t i = 2; i < 2 * tx_mtu; i += 2) {
-//         tx_buff[i] = 1500 << 4;   // I
-//         tx_buff[i+1] = 1500 << 4; // Q
-//     }
-//     // Генерация I/Q samples
-//     /*float x = -96;
-//     for (size_t i = 2; i < 2 * tx_mtu; i += 2) {
-//         tx_buff[i] = (x*x);   // I компонента
-//         tx_buff[i+1] = (x*x); // Q компонента
-//         x += 0.1;
-//     }*/
-
-//     // Встраивание временной метки
-//     for(size_t i = 0; i < 8; i++) {
-//         uint8_t tx_time_byte = (tx_time >> (i * 8)) & 0xff;
-//         tx_buff[2 + i] = tx_time_byte << 4;
-//     }
-// }
-
-// void save_to_file(const char *filename, const int16_t *samples, size_t num_samples) {
-//     FILE *file = fopen(filename, "wb");
-//     if (file != NULL) {
-//         fwrite(samples, sizeof(int16_t), num_samples, file);
-//         fclose(file);
-//         printf("Saved %zu samples to %s\n", num_samples / 2, filename);
-//     }
-// }
-
-// vector<complex<float>> bpsk_mapper(const vector<int>& array){
-//     vector <complex <float>> samples;
-//     for (int i = 0; i < array.size(); i++) {
-//         complex <float> val;
-//         if (array[i] == 1) {
-//             val = 1.0 + 0.0f;
-//         } else {
-//             val = -1.0 + 0.0f;
-//         }
-//         samples.push_back(val);
-//     }
-//     return samples;
-// }
+vector<complex<float>> bpsk_mapper(const vector<int>& array){
+    vector <complex <float>> samples;
+    for (int i = 0; i < array.size(); i++) {
+        complex <float> val;
+        if (array[i] == 1) {
+            val = 1.0 + 0.0f;
+        } else {
+            val = -1.0 + 0.0f;
+        }
+        samples.push_back(val);
+    }
+    return samples;
+}
 
 
-// vector<complex<float>> upsampling(vector<complex<float>>& samples, int samples_per_symbol) {
-//     vector<complex<float>> upsampled;
-//     upsampled.resize(samples.size() * samples_per_symbol);
-//     int j = 0;
-//     for (int i = 0; i < upsampled.size(); i += samples_per_symbol) 
-//     {
-//         upsampled[i] = samples[j];
-//         j++;
+vector<int> bpsk_demapper(const vector<complex<float>>& symbols) {
+    vector<int> bits;
+    bits.reserve(symbols.size());
+    
+    for (int i = 0; i < static_cast<int>(symbols.size()); i++) {
+        // Решение по знаку вещественной части
+        if (symbols[i].real() >= 0.0f) {
+            bits.push_back(1);  // Положительный → 1
+        } else {
+            bits.push_back(0);  // Отрицательный → 0
+        }
+    }
+    return bits;
+}
 
-//     }
-//     return upsampled;
-// }
 
-
+// символьная синхра
 vector<complex<float>> clock_recovery_mueller_muller(const vector<complex<float>>& samples, int sps) {
     float mu = 0.01f;
     std::vector<std::complex<float>> out(samples.size() + 10);
@@ -92,100 +59,7 @@ vector<complex<float>> clock_recovery_mueller_muller(const vector<complex<float>
     return std::vector<std::complex<float>>(out.begin() + 2, out.begin() + i_out);
 }
 
-
-// void sdr_to_complex(const int16_t* sdr_buf, vector<complex<float>>& out, size_t num_samples) {
-//     out.resize(num_samples);
-//     for (size_t i = 0; i < num_samples; ++i) {
-//         out[i] = {
-//             (float)sdr_buf[2*i] / 20.0f,
-//             (float)sdr_buf[2*i + 1] / 20.0f
-//         };
-//     }
-// }
-
-// void complex_to_sdr(const vector<complex<float>>& in, int16_t* sdr_buf, size_t num_samples) {
-//     for (size_t i = 0; i < num_samples; ++i) {
-//         sdr_buf[2*i] = (int16_t)(in[i].real() * 2000.0f) << 4;
-//         sdr_buf[2*i+1] = (int16_t)(in[i].imag() * 2000.0f) << 4;
-//     }
-// }
-
-
-
-vector<float> srrc(int syms, float beta, int L) {
-    if (beta < 0.0f) beta = 0.0f;
-    if (beta > 1.0f) beta = 1.0f;
-    
-    int span = 2 * syms * L + 1;  
-    vector<float> h(span);
-    
-    for (int i = 0; i < span; i++) {
-        float t = (float)(i - syms * L) / (float)L;  
-        float result = 0.0f;
-
-        if (beta < EPS) {
-            if (fabsf(t) < EPS) {
-                result = 1.0f;
-            } else {
-                float pi_t = PI * t;
-                result = sinf(pi_t) / pi_t;
-            }
-        } else {
-            float four_beta_t = 4.0f * beta * t;
-            float pi_t = PI * t;
-            
-            if (fabsf(t) < EPS) {
-                result = 1.0f + beta * (4.0f / PI - 1.0f);
-            }
-            else if (fabsf(fabsf(four_beta_t) - 1.0f) < EPS) {
-                float arg = PI * (1.0f + beta) / (4.0f * beta);
-                result = (beta / sqrtf(2.0f)) * 
-                         ((1.0f + 2.0f/PI) * sinf(arg) + 
-                          (1.0f - 2.0f/PI) * cosf(arg));
-            }
-            else {
-                float num = sinf(pi_t * (1.0f - beta)) + 
-                            four_beta_t * cosf(pi_t * (1.0f + beta));
-                float denom = pi_t * (1.0f - four_beta_t * four_beta_t);
-                result = num / denom;
-            }
-        }
-        
-        h[i] = isfinite(result) ? result : 0.0f;
-    }
-    
-    float energy = 0.0f;
-    for (float v : h) energy += v * v;
-    if (energy > 1e-10f) {
-        float scale = 1.0f / sqrtf(energy);
-        for (float& v : h) v *= scale;
-    }
-    
-    return h;
-}
-
-vector<complex<float>> matched_filter(const vector<complex<float>>& input, int L, float beta) {
-    const int syms = 5; 
-    vector<float> filter = srrc(syms, beta, L); 
-    
-    int filter_len = filter.size();
-    int half_len = filter_len / 2;
-    
-    vector<complex<float>> output(input.size());
-    
-    for (size_t i = 0; i < input.size(); i++) {
-        complex<float> sum(0.0f, 0.0f);
-        for (int m = 0; m < filter_len; m++) {
-            int idx = (int)i - half_len + m;
-            if (idx >= 0 && idx < (int)input.size()) {
-                sum += input[idx] * filter[m];
-            }
-        }
-        output[i] = sum;
-    }
-    return output;
-}
-
+// частотная синхра
 vector<complex<float>> costas_loop_bpsk(const vector<complex<float>>& samples) {
     int N = static_cast<int>(samples.size());
     vector<complex<float>> out(N);
@@ -210,20 +84,80 @@ vector<complex<float>> costas_loop_bpsk(const vector<complex<float>>& samples) {
     return out;
 }
 
-vector<complex<float>>correlate_barker(const vector<complex<float>>& signal,  vector<complex<float>>& barker_code) {
-    int N = signal.size();
-    int L = barker_code.size();
-    vector<complex<float>> corr;
-    corr.reserve(N - L + 1);
-    for (int i = 0; i <= N - L; ++i) {
-        complex<float> sum = 0;
-        for (int j = 0; j < L; ++j) {
-            sum += signal[i + j] * conj(barker_code[j]); 
+
+vector<complex<float>> OFDM(const vector<complex<float>>& symbols,int Nc)   // Количество поднесущих
+{
+    // Защитный интервал = 1/8 от полезной длины символа
+    int guard_length = Nc / 8;                
+    int useful_len = Nc;
+    int total_len = useful_len + guard_length;
+    
+    vector<complex<float>> out;
+    int num_blocks = symbols.size() / Nc;
+    
+    for (int b = 0; b < num_blocks; b++) {
+        // 1. Заполнение частотной области
+        vector<complex<float>> freq(Nc);
+        for (int k = 0; k < Nc; k++) 
+            freq[k] = symbols[b * Nc + k];
+        
+        // 2. IFFT: частота → время
+        vector<complex<float>> time(Nc);
+        for (int n = 0; n < Nc; n++) {
+            time[n] = {0, 0};
+            for (int k = 0; k < Nc; k++) {
+                float angle = 2.0f * PI * k * n / Nc;
+                time[n] += freq[k] * complex<float>(cosf(angle), sinf(angle));
+            }
+            time[n] /= Nc;  // Нормировка мощности
         }
         
-        corr.push_back(sum);
+        // 3. Добавление циклического префикса (копия конца в начало)
+        for (int i = 0; i < guard_length; i++) {
+            out.push_back(time[Nc - guard_length + i]);
+        }
+        // Полезная часть
+        for (int i = 0; i < Nc; i++) {
+            out.push_back(time[i]);
+        }
     }
-    return corr;
+    return out;
+}
+
+// OFDM ДЕМОДУЛЯТОР 
+vector<complex<float>> OFDM_Demodulate(const vector<complex<float>>& rx_signal, int Nc)                               
+{
+    // Защитный интервал = 1/8 от полезной длины символа
+    int guard_length = Nc / 8;
+    int useful_len = Nc;
+    int total_len = useful_len + guard_length;
+    
+    vector<complex<float>> out;
+    int num_blocks = rx_signal.size() / total_len;
+    
+    for (int b = 0; b < num_blocks; b++) {
+        // 1. Пропускаем защитный интервал
+        int start = b * total_len + guard_length;
+        vector<complex<float>> time(Nc);
+        for (int i = 0; i < Nc; i++) 
+            time[i] = rx_signal[start + i];
+        
+        // 2. FFT: время → частота
+        vector<complex<float>> freq(Nc);
+        for (int k = 0; k < Nc; k++) {
+            freq[k] = {0, 0};
+            for (int n = 0; n < Nc; n++) {
+                float angle = -2.0f * PI * k * n / Nc;
+                freq[k] += time[n] * complex<float>(cosf(angle), sinf(angle));
+            }
+            // Нормировка не нужна: деление на N в TX компенсируется FFT
+        }
+        
+        // 3. Сохраняем восстановленные символы
+        for (int k = 0; k < Nc; k++) 
+            out.push_back(freq[k]);
+    }
+    return out;
 }
 
 void run_gui(

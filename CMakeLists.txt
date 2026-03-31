@@ -48,9 +48,9 @@ target_compile_options(implot PRIVATE -fPIC)
 
 # Основной исполняемый файл (main)
 set(MAIN_SOURCE_FILES
-    ${SRC_DIR}/main.cpp
+    ${SRC_DIR}/main_OFDM.cpp
     ${SRC_DIR}/SDR_init.cpp 
-    ${SRC_DIR}/function.cpp 
+    ${SRC_DIR}/function_OFDM.cpp 
 )
 
 add_executable(main ${MAIN_SOURCE_FILES})
